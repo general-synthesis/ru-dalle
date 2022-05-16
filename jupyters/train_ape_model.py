@@ -99,7 +99,7 @@ class RuDalleDataset(Dataset):
         text =  tokenizer.encode_text(text, text_seq_length=self.text_seq_length).squeeze(0).to(device)
         return text, image
     
- class Args():
+class Args():
     def __init__(self):
      
         self.text_seq_length = model.get_param('text_seq_length')
@@ -165,74 +165,70 @@ def freeze(
     return model
 
 def train(model,args: Args, train_dataloader: RuDalleDataset):
-  
-  
-  """
-  args - arguments for training
+    """
+    args - arguments for training
 
-  train_dataloader - RuDalleDataset class with text - image pair in batch
-  """
-  loss_logs = []
-  try:
-    progress = tqdm(total=len(train_dataloader), desc='finetuning goes brrr')
-    save_counter = 0
-    for epoch in range(args.epochs):
+    train_dataloader - RuDalleDataset class with text - image pair in batch
+    """
+    loss_logs = []
+    try:
+        progress = tqdm(total=len(train_dataloader), desc='finetuning goes brrr')
+        save_counter = 0
+        for epoch in range(args.epochs):
       
-      for text, images in train_dataloader:
-        device = model.get_param('device')
-        save_counter+=1
-        model.zero_grad()
-        attention_mask = torch.tril(torch.ones((args.bs, 1, args.total_seq_length, args.total_seq_length), device=device))
-        image_input_ids = vae.get_codebook_indices(images)
+            for text, images in train_dataloader:
+                device = model.get_param('device')
+                save_counter+=1
+                model.zero_grad()
+                attention_mask = torch.tril(torch.ones((args.bs, 1, args.total_seq_length, args.total_seq_length), device=device))
+                image_input_ids = vae.get_codebook_indices(images)
         
-        input_ids = torch.cat((text, image_input_ids), dim=1) 
-        loss, loss_values = model.forward(input_ids, attention_mask, return_loss=True)
-        #train step
-        loss.backward()
+                input_ids = torch.cat((text, image_input_ids), dim=1) 
+                loss, loss_values = model.forward(input_ids, attention_mask, return_loss=True)
+                #train step
+                loss.backward()
         
-        torch.nn.utils.clip_grad_norm_(model.parameters(),args.clip)
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        #save every here
-        if save_counter % args.save_every == 0:
-          print(f'Saveing checkpoint here {args.model_name}_dalle_{save_counter}.pt')
+                torch.nn.utils.clip_grad_norm_(model.parameters(),args.clip)
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+                #save every here
+                if save_counter % args.save_every == 0:
+                    print(f'Saveing checkpoint here {args.model_name}_dalle_{save_counter}.pt')
           
-          plt.plot(loss_logs)
-          plt.show()
-          torch.save(
-                    model.state_dict(),
-                    os.path.join(args.save_path,f"{args.model_name}_dalle_{save_counter}.pt")
+                    plt.plot(loss_logs)
+                    plt.show()
+                    torch.save(
+                        model.state_dict(),
+                        os.path.join(args.save_path,f"{args.model_name}_dalle_{save_counter}.pt")
                     )
-        if args.wandb:
-          wandb.log({"loss":  loss.item()})
-        loss_logs+=[loss.item()]
-        progress.update()
-        progress.set_postfix({"loss": loss.item()})
+                if args.wandb:
+                    wandb.log({"loss":  loss.item()})
+                loss_logs+=[loss.item()]
+                progress.update()
+                progress.set_postfix({"loss": loss.item()})
     
-    print(f'Complitly tuned and saved here  {args.model_name}__dalle_last.pt')
+        print(f'Complitly tuned and saved here  {args.model_name}__dalle_last.pt')
     
-    plt.plot(loss_logs)
-    plt.show()
+        plt.plot(loss_logs)
+        plt.show()
     
-    torch.save(
+        torch.save(
                 model.state_dict(),
                 os.path.join(args.save_path,f"{args.model_name}_dalle_last.pt")
-                )
+        )
   
-  except KeyboardInterrupt:
+    except KeyboardInterrupt:
+        print(f'What for did you stopped? Please change model_path to /{args.save_path}/{args.model_name}_dalle_Failed_train.pt')
+        plt.plot(loss_logs)
+        plt.show()
     
-    
-    print(f'What for did you stopped? Please change model_path to /{args.save_path}/{args.model_name}_dalle_Failed_train.pt')
-    plt.plot(loss_logs)
-    plt.show()
-    
-    torch.save(
+        torch.save(
                 model.state_dict(),
                 os.path.join(args.save_path,f"{args.model_name}_dalle_Failed_train.pt")
-                )
-  except Exception as err:
-    print(f'Failed with {err}')
+        )
+    except Exception as err:
+        print(f'Failed with {err}')
     
 model = freeze(model = model,
     freeze_emb=False,
